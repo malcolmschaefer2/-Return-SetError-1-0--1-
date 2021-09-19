@@ -1,0 +1,129 @@
+Func _Notify_Show($vIcon, $sTitle, $sMessage, $iDelay = 0, $iClick = 1)
+
+    If $aNotify_Data[0][0] = $aNotify_Data[0][1] Then
+        Return SetError(1, 0, -1)
+    EndIf
+
+    Local $aLabel_Pos, $iLabel_Width, $iLabel_Height = 20
+
+    ; Set default auto-sizing Notify dimensions
+    Local $iNotify_Width_max = 300
+    Local $iNotify_Width_min = 150
+    Local $iNotify_Height = 40
+
+    ; Check for icon
+    Local $iIcon_Style = 0
+    Local $iIcon_Reduction = 36
+    Local $sDLL = "user32.dll"
+    Local $sImg = ""
+    If StringIsDigit($vIcon) Then
+        Switch $vIcon
+            Case 0
+                $iIcon_Reduction = 0
+            Case 8
+                $sDLL = "imageres.dll"
+                $iIcon_Style = 78
+            Case 16 ; Stop
+                $iIcon_Style = -4
+            Case 32 ; Query
+                $iIcon_Style = -3
+            Case 48 ; Exclam
+                $iIcon_Style = -2
+            Case 64 ; Info
+                $iIcon_Style = -5
+            Case Else
+                Return SetError(1, 0, -1)
+        EndSwitch
+    Else
+        Switch StringLower(StringRight($vIcon, 3))
+            Case "exe", "ico"
+                $sDLL = $vIcon
+                $iIcon_Style = 0
+            Case "bmp", "jpg", "gif"
+                $sImg = $vIcon
+        EndSwitch
+    EndIf
+
+    ; Determine max message width
+    Local $iMax_Label_Width = $iNotify_Width_max - $iIcon_Reduction - 8
+
+    ; Get text size
+    If $sTitle Then
+        ; Measure title
+        $aLabel_Pos = _StringSize($sTitle, 9, Default, Default, $aNotify_Settings[1][3])
+        If @error Then
+            Return SetError(3, 0, -1)
+        EndIf
+        ; Check fits horizontally
+        If $aLabel_Pos[2] > $iMax_Label_Width Then
+            Return SetError(4, 0, -1)
+        Else
+            ; Set width required
+            $iLabel_Width = $aLabel_Pos[2]
+        EndIf
+        ; Measure message
+        $aLabel_Pos = _StringSize($sMessage, 9, Default, Default, $aNotify_Settings[1][3])
+        If @error Then
+            Return SetError(3, 0, -1)
+        EndIf
+        ; Check fits horizontally
+        If $aLabel_Pos[2] > $iMax_Label_Width Then
+            Return SetError(4, 1, -1)
+        Else
+            ; Adjust width required if needed
+            If $aLabel_Pos[2] > $iLabel_Width Then
+                $iLabel_Width = $aLabel_Pos[2]
+            EndIf
+        EndIf
+    Else
+        ; Measure message
+        $aLabel_Pos = _StringSize($sMessage, 9, Default, Default, $aNotify_Settings[1][3], $iMax_Label_Width)
+        If @error Then
+            Return SetError(3, 0, -1)
+        EndIf
+        ; If wrapped check still fits vertically
+        If $aLabel_Pos[3] > 40 Then
+            Return SetError(4, 1, -1)
+        EndIf
+        ; Check fits horizontally
+        If $aLabel_Pos[2] > $iMax_Label_Width Then
+            Return SetError(4, 1, -1)
+        Else
+            ; Set Notification size and label position
+            If $aLabel_Pos[2] > $iLabel_Width Then
+                $iLabel_Width = $aLabel_Pos[2]
+            EndIf
+            $sMessage = $aLabel_Pos[0]
+            ; Adjust vertical position to centre lines
+            Local $iLabel_Y = Int((40 - $aLabel_Pos[3]) / 2)
+        EndIf
+    EndIf
+
+    ; Set Notify size
+    Local $iNotify_Width = $iLabel_Width + 8 + $iIcon_Reduction
+
+    ; Increase if below min size
+    If $iNotify_Width < $iNotify_Width_min + $iIcon_Reduction Then
+        $iNotify_Width = $iNotify_Width_min + $iIcon_Reduction
+        $iLabel_Width = $iNotify_Width_min - 8
+    EndIf
+
+    ; Set Notify coords
+    Local $iNotify_X = $aNotify_Data[0][2] - $iNotify_Width
+    Local $iNotify_Y = $aNotify_Data[0][3] - (50 * ($aNotify_Data[0][0] + 1))
+
+    ; Create Notify slice with $WS_POPUPWINDOW style and $WS_EX_TOOLWINDOW, $WS_EX_TOPMOST and $WS_EX_STATICEDGE extended style
+    Local $hNotify_Handle = GUICreate("", $iNotify_Width, $iNotify_Height, $iNotify_X, $iNotify_Y, 0x80880000, BitOR(0x00020000, 0x00000080, 0x00000008))
+    If @error Then
+        Return SetError(5, 0, -1)
+    EndIf
+    GUISetBkColor($aNotify_Settings[1][2])
+
+    ; Create icon
+    If $iIcon_Reduction Then
+        If $sImg Then
+            GUICtrlCreatePic($sImg, 4, 4, 32, 32)
+        Else
+            GUICtrlCreateIcon($sDLL, $iIcon_Style, 4, 4)
+        EndIf
+    EndIf
